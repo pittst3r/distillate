@@ -1,81 +1,128 @@
 mod boilerplate;
 
 use std::path::PathBuf;
-use std::{fs, io};
+use std::{fs, io, str};
 use comrak::{parse_document, format_html, Arena, ComrakOptions};
 use comrak::nodes::{AstNode, NodeValue};
-
-fn main() {
-    let dest_ext = "html";
-    let root = PathBuf::from(SRC_DIR);
-    let files = &mut vec![PathBuf::new(); 0];
-    find_files(root, SRC_EXT, files).unwrap();
-    let mut opts = ComrakOptions::default();
-    opts.extension.footnotes = true;
-    opts.extension.front_matter_delimiter = Some("---".to_owned());
-
-    for file in files {
-        let arena = Arena::new();
-        if let Some(root) = parse(&arena, file, &opts) {
-            prevent_orphaned_words(root);
-            let dest = file;
-            dest.set_extension(dest_ext);
-            let dest = PathBuf::from(dest.strip_prefix(SRC_DIR).unwrap());
-            write(&dest, root, &opts);
-        }
-    }
-}
 
 const SRC_DIR: &str = "src";
 const DIST_DIR: &str = "dist";
 const SRC_EXT: &str = "md";
+const DEST_EXT: &str = "html";
 const NBSP: &str = "\u{00A0}";
 
-fn parse<'a>(arena: &'a Arena<AstNode<'a>>, path: &PathBuf, opts: &ComrakOptions) -> Option<&'a AstNode<'a>> {
-    if let Ok(content) = fs::read(path) {
-        return Some(
-            parse_document(
-                arena,
-                String::from_utf8(content).unwrap().as_str(),
-                opts)
-        );
-    }
+fn main() {
+    let root = PathBuf::from(SRC_DIR);
+    let files = match find_files(root, SRC_EXT) {
+        Ok(files) => files,
+        Err(e) => return println!("Came into difficulty finding files to process: {}", e),
+    };
 
-    None
-}
+    let arena = Arena::new();
 
-fn iter_nodes<'a, F>(node: &'a AstNode<'a>, f: &F)
-    where F : Fn(&'a AstNode<'a>) {
-    f(node);
-    for c in node.children() {
-        iter_nodes(c, f);
-    }
-}
+    for file in files {
+        if let Ok(md) = MarkdownFile::new(&arena, &file) {
+            md.prevent_orphaned_words();
 
-fn prevent_orphaned_words<'a>(root: &'a AstNode<'a>) {
-    iter_nodes(root, &|node| {
-        match &mut node.data.borrow_mut().value {
-            &mut NodeValue::Text(ref mut text) => {
-                let string = String::from_utf8(text.to_vec()).unwrap();
-                if let Some(last_space_pos) = string.rfind(r" ") {
-                    text.splice(last_space_pos..(last_space_pos + 1), NBSP.bytes());
-                }
+            let html = match HTMLFile::try_from(md) {
+                Ok(html) => html,
+                Err(e) => return println!("Failed to generate HTML from file '{}': {}", file.to_str().unwrap_or("None"), e),
+            };
+
+            let dest = src_path_to_dest_path(file, DEST_EXT);
+
+            if let Err(e) = html.persist(dest) {
+                println!("Failed to save generated file: {}", e)
             }
-            _ => (),
         }
-    });
+    }
 }
 
-fn write<'a>(path: &PathBuf, root: &'a AstNode<'a>, opts: &ComrakOptions) {
-    let mut html = vec![];
-    format_html(root, opts, &mut html).unwrap();
-    boilerplate::wrap_body(&mut html);
+struct MarkdownFile<'a> {
+    inner: &'a AstNode<'a>,
+}
 
-    let dest_file = PathBuf::from(DIST_DIR).join(path);
-    let mut dest_dir = dest_file.clone();
-    dest_dir.pop();
-    fs::create_dir_all(dest_dir).unwrap();
-    fs::write(dest_file, &html).unwrap();
+struct HTMLFile {
+    inner: Vec<u8>,
+}
+
+trait Persistable {
+    type Error;
+    
+    fn persist(&self, dest: PathBuf) -> Result<(), Self::Error>;
+}
+
+impl Persistable for HTMLFile {
+    type Error = io::Error;
+
+    fn persist(&self, dest: PathBuf) -> Result<(), Self::Error> {
+        let dest_file = PathBuf::from(DIST_DIR).join(dest);
+        fs::create_dir_all(dest_file.parent().unwrap())?;
+        fs::write(dest_file, &self.inner)?;
+
+        Ok(())
+    }
+}
+
+impl<'a> MarkdownFile<'a> {
+    fn new(arena: &'a Arena<AstNode<'a>>, path: &PathBuf) -> Result<MarkdownFile<'a>, String> {
+        let path_str = path.to_str().unwrap_or("None");
+
+        if let Ok(content) = fs::read(path) {
+            let opts = comrak_options();
+            if let Ok(content) = str::from_utf8(&content[..]) {
+                let inner = parse_document(arena, content, &opts);
+                return Ok(MarkdownFile { inner });
+            } else {
+                return Err(format!("Unable to parse file as utf8 at path '{}'", path_str));
+            }
+        }
+
+        Err(format!("Unable to parse markdown file at path '{}'", path_str))
+    }
+
+    fn iter_nodes<F>(node: &'a AstNode<'a>, f: &F)
+        where F : Fn(&'a AstNode<'a>) {
+        f(node);
+        for c in node.children() {
+            Self::iter_nodes(c, f);
+        }
+    }
+
+    fn prevent_orphaned_words(&self) {
+        let nodes: &'a AstNode<'a> = &self.inner;
+        Self::iter_nodes(nodes, &|node| {
+            match &mut node.data.borrow_mut().value {
+                &mut NodeValue::Text(ref mut text) => {
+                    let string = String::from_utf8(text.to_vec()).unwrap();
+                    if let Some(last_space_pos) = string.rfind(r" ") {
+                        text.splice(last_space_pos..(last_space_pos + 1), NBSP.bytes());
+                    }
+                }
+                _ => (),
+            }
+        });
+    }
+}
+
+// TODO
+// impl<'a> std::convert::TryFrom<MarkdownFile<'a>> for HTMLFile {
+impl HTMLFile {
+    fn try_from(origin: MarkdownFile) -> Result<Self, io::Error> {
+        let mut html = vec![];
+        let opts = comrak_options();
+        format_html(origin.inner, &opts, &mut html)?;
+        boilerplate::wrap_body(&mut html);
+
+        Ok(HTMLFile { inner: html })
+    }
+}
+
+fn comrak_options() -> ComrakOptions {
+    let mut opts = ComrakOptions::default();
+    opts.extension.footnotes = true;
+    opts.extension.front_matter_delimiter = Some("---".to_owned());
+    opts
 }
 
 fn visit_dirs<'a, F>(path: PathBuf, acc: &'a mut Vec<PathBuf>, predicate: &F) -> Result<(), io::Error>
@@ -96,12 +143,23 @@ fn visit_dirs<'a, F>(path: PathBuf, acc: &'a mut Vec<PathBuf>, predicate: &F) ->
     Ok(())
 }
 
-fn find_files<'a>(root: PathBuf, extension: &str, files: &'a mut Vec<PathBuf>) -> Result<(), io::Error> {
+fn find_files<'a>(root: PathBuf, extension: &str) -> Result<Vec<PathBuf>, io::Error> {
+    let files = &mut vec![PathBuf::new(); 0];
+
     let is_markdown = |path: &PathBuf| {
         match path.extension() {
             Some(ext) => ext == extension,
             None => false,
         }
     };
-    visit_dirs(root, files, &is_markdown)
+
+    visit_dirs(root, files, &is_markdown)?;
+
+    Ok(files.to_owned())
+}
+
+fn src_path_to_dest_path(mut file: PathBuf, dest_ext: &str) -> PathBuf {
+    file.set_extension(dest_ext);
+    file = PathBuf::from(file.strip_prefix(SRC_DIR).unwrap());
+    file
 }
