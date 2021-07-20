@@ -1,28 +1,39 @@
-const PRE: &[u8] = r#"<!DOCTYPE html>
+use chrono::{Utc, Datelike};
+use handlebars::{Handlebars, RenderError};
+use serde_json::json;
+use crate::{Config, typography};
+
+const TEMPLATE: &str = r#"<!DOCTYPE html>
 <html lang="en">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width">
-<title>Robbie's Home on the Web</title>
+<title>{{title}}</title>
 </head>
 
 <body>
-<h1><a href="/" title="Go to homepage">Robbie's Home on the&nbsp;Web</a></h1>
-"#.as_bytes();
-
-const POST: &[u8] = r#"<hr />
-<p>© 2021 Robbie Pitts</p>
+<h1><a href="/" title="Go to homepage">{{heading}}</a></h1>
+{{{body}}}
+<hr />
+<p>© {{year}} {{copyright}}</p>
 </body>
 
 </html>
-"#.as_bytes();
+"#;
 
-pub fn wrap_body(body: &mut Vec<u8>) {
-    let mut page: Vec<u8> = vec![];
+pub fn wrap(body: &mut String, conf: &Config) -> Result<(), RenderError> {
+    let year = Utc::now().date().year();
+    let heading = typography::replace_last_bsp_with_nbsp(&conf.heading);
+    let hbs = Handlebars::new();
+    let values = json!({
+        "title": conf.title,
+        "heading": heading,
+        "copyright": conf.copyright,
+        "year": year,
+        "body": body
+    });
 
-    page.extend(PRE);
-    page.extend(body.iter());
-    page.extend(POST);
+    *body = hbs.render_template(TEMPLATE, &values)?;
 
-    *body = page;
+    Ok(())
 }
