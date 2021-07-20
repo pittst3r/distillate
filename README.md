@@ -8,7 +8,19 @@ A minimalist markdown to html static site generator.
 distillate build
 ```
 
+### Installation
+
+This is a Rust crate that is currently unpublished, but you may install it from source on GitHub to try it out:
+
+```sh
+cargo install --git https://github.com/pittst3r/distillate.git
+```
+
 ### Conventions
 
 - Put markdown files in `src` directory in your project
-- HTML files are generated in the same structure within a `dist` directory it creates as a sibling of `src`
+- HTML files are generated into a `dist` directory using the same file structure
+
+## To-do
+
+- [ ] Generate table of contents for homepage, perhaps using hbs for insertion
