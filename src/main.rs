@@ -11,7 +11,6 @@ use toml::Value;
 
 const SRC_DIR: &str = "src";
 const SRC_EXT: &str = "md";
-const DIST_DIR: &str = "dist";
 
 #[derive(StructOpt)]
 #[structopt(name = "distillate", about = "Markdown to HTML static site generator")]
@@ -22,7 +21,9 @@ struct Opt {
 
 #[derive(StructOpt)]
 enum Command {
-    Build
+    Build {
+        dest: String
+    }
 }
 
 pub struct Config {
@@ -35,13 +36,13 @@ fn main() {
     let args = Opt::from_args();
 
     match args.cmd {
-        Some(Command::Build) => {
+        Some(Command::Build { dest }) => {
             let conf = match load_config() {
                 Ok(conf) => conf,
                 Err(e) => return println!("{}", e),
             };
 
-            match markdown_to_html(SRC_DIR, SRC_EXT, DIST_DIR, &conf) {
+            match markdown_to_html(SRC_DIR, SRC_EXT, dest.as_str(), &conf) {
                 Ok(_) => (),
                 Err(e) => return println!("{}", e),
             };
