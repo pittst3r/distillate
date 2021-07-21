@@ -12,7 +12,7 @@ const TEMPLATE: &str = r#"<!DOCTYPE html>
 <style type="text/css">
     body {
         margin: auto 2em;
-        font-family: ui-sans-serif;
+        font-family: ui-sans-serif, system-ui;
     }
     ul {
         list-style-type: "-  ";
