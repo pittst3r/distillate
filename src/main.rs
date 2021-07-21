@@ -1,5 +1,5 @@
 mod markdown_to_html;
-mod boilerplate;
+mod template;
 mod typography;
 mod files;
 
@@ -28,8 +28,12 @@ enum Command {
 
 pub struct Config {
     title: String,
-    heading: String,
     copyright: String,
+    template_path: String,
+}
+
+pub struct State {
+    is_home: bool,
 }
 
 fn main() {
@@ -83,8 +87,8 @@ impl TryFrom<Value> for Config {
     fn try_from(map: Value) -> Result<Self, Self::Error> {
         Ok(Config {
             title: unwrap_config_value!(map, "title"),
-            heading: unwrap_config_value!(map, "heading"),
             copyright: unwrap_config_value!(map, "copyright"),
+            template_path: map["template-path"].as_str().unwrap().to_string()
         })
     }
 }

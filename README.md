@@ -24,5 +24,6 @@ cargo install --git https://github.com/pittst3r/distillate.git
 
 ## To-do
 
-- [ ] Make page template editable in userspace
+- [x] Make page template editable in userspace
+- [ ] Extract page title from `h1` since `pulldown-cmark` doesn't support frontmatter
 - [ ] Generate table of contents for homepage, perhaps using hbs for insertion
