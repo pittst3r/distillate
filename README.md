@@ -2,15 +2,17 @@
 
 A minimalist markdown to html static site generator.
 
+This is a personal project to practice Rust and motivate myself to make a personal site and blog. Pretty sure we don't actually need another static site generator!
+
 ## Usage
 
-```sh
-distillate build
+```
+distillate build <destination directory path; will be generated if necessary>
 ```
 
 ### Installation
 
-This is a Rust crate that is currently unpublished, but you may install it from source on GitHub to try it out:
+This is a Rust crate that is unpublished and will probably remain so. One may install it from source on GitHub:
 
 ```sh
 cargo install --git https://github.com/pittst3r/distillate.git
@@ -19,7 +21,6 @@ cargo install --git https://github.com/pittst3r/distillate.git
 ### Conventions
 
 - Put markdown files in `src` directory in your project
-- HTML files are generated into a `dist` directory using the same file structure
 
 ## To-do
 
