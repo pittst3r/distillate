@@ -23,4 +23,5 @@ cargo install --git https://github.com/pittst3r/distillate.git
 
 ## To-do
 
+- [ ] Make page template editable in userspace
 - [ ] Generate table of contents for homepage, perhaps using hbs for insertion

@@ -9,6 +9,19 @@ const TEMPLATE: &str = r#"<!DOCTYPE html>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width">
 <title>{{title}}</title>
+<style type="text/css">
+    body {
+        margin: auto 2em;
+        font-family: ui-sans-serif;
+    }
+    ul {
+        list-style-type: "-  ";
+    }
+    ul, ol {
+        padding: 0;
+        list-style-position: outside;
+    }
+</style>
 </head>
 
 <body>
