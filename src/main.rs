@@ -8,6 +8,7 @@ use markdown_to_html::markdown_to_html;
 use files::find_files;
 use structopt::StructOpt;
 use toml::Value;
+use handlebars::JsonValue;
 
 const SRC_DIR: &str = "src";
 const SRC_EXT: &str = "md";
@@ -33,7 +34,8 @@ pub struct Config {
 }
 
 pub struct State {
-    is_home: bool,
+    is_home: JsonValue,
+    page_title: JsonValue,
 }
 
 fn main() {

@@ -10,6 +10,7 @@ pub fn wrap(body: &mut String, conf: &Config, state: &State) -> Result<(), Rende
         "page": {
             "body": body,
             "is-home": state.is_home,
+            "title": state.page_title,
         },
         "site": {
             "title": conf.title,

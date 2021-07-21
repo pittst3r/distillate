@@ -1,9 +1,14 @@
 use std::{fs, io, str};
 use std::path::{PathBuf};
-use pulldown_cmark::{Event, CowStr, Parser, Options, html};
+use pulldown_cmark::{Event, Tag, CowStr, Parser, Options, html};
+use handlebars::JsonValue;
 use crate::{SRC_DIR, Config, State, template, find_files, typography};
 
 const DIST_EXT: &str = "html";
+
+struct Captured {
+    page_title: Option<String>,
+}
 
 pub fn markdown_to_html(src_dir: &str, src_ext: &str, dist_dir: &str, conf: &Config) -> Result<(), String> {
     let files = match find_files(src_dir, src_ext) {
@@ -20,14 +25,37 @@ pub fn markdown_to_html(src_dir: &str, src_ext: &str, dist_dir: &str, conf: &Con
         let content = fs::read(&file).unwrap();
         let content = str::from_utf8(content.as_slice()).unwrap();
         let parser = Parser::new_ext(content, options);
-        let events = process_events(parser);
+        let mut is_inside_h1: bool = false;
+        let mut captured = Captured { page_title: None };
+        let events = parser.map(|event| match event {
+            Event::Start(Tag::Heading(1u32)) => {
+                is_inside_h1 = true;
+                event
+            },
+            Event::End(Tag::Heading(1u32)) => {
+                is_inside_h1 = false;
+                event
+            },
+            Event::Text(text) => {
+                if is_inside_h1 {
+                    captured.page_title = Some(text.clone().into_string());
+                }
+                prevent_orphaned_words(text)
+            },
+            _ => event,
+        });
         let dest = src_path_to_dest_path(&file, src_dir, dist_dir, DIST_EXT);
-        let state = State {
-            is_home: is_home(&file),
-        };
         let mut content = String::new();
 
         html::push_html(&mut content, events);
+
+        let state = State {
+            page_title: match captured.page_title {
+                Some(title) => JsonValue::String(title),
+                None => JsonValue::Null,
+            },
+            is_home: is_home(&file),
+        };
         
         match template::wrap(&mut content, conf, &state) {
             Err(e) => return Err(format!("Unable to generate html from template '{}': {}", file.to_str().unwrap_or("???"), e)),
@@ -40,13 +68,6 @@ pub fn markdown_to_html(src_dir: &str, src_ext: &str, dist_dir: &str, conf: &Con
     }
 
     Ok(())
-}
-
-fn process_events(parser: Parser) -> impl Iterator<Item=Event> {
-    parser.map(move |event| match event {
-        Event::Text(text) => prevent_orphaned_words(text),
-        _ => event,
-    })
 }
 
 fn prevent_orphaned_words(text: CowStr) -> Event {
@@ -64,7 +85,7 @@ fn persist(content: String, dest: &PathBuf) -> io::Result<()> {
     fs::write(dest, content)
 }
 
-fn is_home(path: &PathBuf) -> bool {
+fn is_home(path: &PathBuf) -> JsonValue {
     let ending: PathBuf = [SRC_DIR, "index.md"].iter().collect();
-    path.ends_with(ending)
+    JsonValue::Bool(path.ends_with(ending))
 }
