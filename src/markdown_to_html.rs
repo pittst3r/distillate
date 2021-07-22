@@ -39,8 +39,10 @@ pub fn markdown_to_html(src_dir: &str, src_ext: &str, dist_dir: &str, conf: &Con
             Event::Text(text) => {
                 if is_inside_h1 {
                     captured.page_title = Some(text.clone().into_string());
+                    Event::Text(text)
+                } else {
+                    prevent_orphaned_words(text)
                 }
-                prevent_orphaned_words(text)
             },
             _ => event,
         });
